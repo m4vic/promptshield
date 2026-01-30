@@ -264,6 +264,43 @@ class Shield:
     def _init_subsystems(self):
         """Initialize subsystems (caching, async, etc.)"""
         self.prediction_cache = {} if self.config["cache_predictions"] else None
+        
+    def _load_ml_models(self):
+        """Load configured ML models"""
+        self.models = {}
+        for model_name in self.config["models"]:
+            try:
+                # Basic placeholder for model loading logic
+                # Real implementation would load from model registry/files
+                # For now, we'll just track that it's "loaded" if files exist
+                # or warn if they don't.
+                
+                # Check if we have semantic matching
+                if model_name == "semantic" or "transformer" in model_name:
+                    try:
+                        from sentence_transformers import SentenceTransformer
+                        # Check signatures if needed
+                        if self.config["verify_models"]:
+                            from .security.model_signing import verify_and_load_model
+                            # verify_and_load_model(...) 
+                            pass
+                            
+                        # Initialize model (lazy)
+                        self.models[model_name] = {"type": "semantic", "status": "active"}
+                    except ImportError:
+                        print(f"⚠️  Skipping model {model_name}: sentence-transformers not installed")
+                        
+                else:
+                    # Classical models (XGBoost, etc)
+                    import os
+                    model_path = os.path.join(os.path.dirname(__file__), "models", f"{model_name}.pkl")
+                    if os.path.exists(model_path):
+                        self.models[model_name] = {"path": model_path, "status": "active"} 
+                    else:
+                        print(f"⚠️  Model file not found: {model_name}")
+                        
+            except Exception as e:
+                print(f"⚠️  Failed to load model {model_name}: {e}")
     
     # ========================================
     # Factory Methods (Presets)
