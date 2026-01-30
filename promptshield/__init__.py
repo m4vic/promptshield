@@ -22,7 +22,7 @@ Legacy API (Deprecated):
     from promptshield.shields import InputShield_L5  # Deprecated
 """
 
-__version__ = "2.0.7"
+__version__ = "2.0.8"
 
 # New configurable Shield (recommended)
 from .shields import Shield, register_component, ShieldComponent

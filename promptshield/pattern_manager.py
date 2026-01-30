@@ -208,17 +208,49 @@ class PatternManager:
                 score = max(score, 0.8)
         
         # Check prompt field (for attack examples)
-        if 'prompt' in pattern and score == 0.0:
+        if 'prompt' in pattern:
             prompt_lower = pattern['prompt'].lower()
-            # Check for partial match (keyword overlap)
-            prompt_words = set(prompt_lower.split())
-            text_words = set(text_lower.split())
-            overlap = prompt_words & text_words
             
-            # If significant overlap, consider it a match
-            if len(overlap) >= 3:  # At least 3 common words
-                overlap_ratio = len(overlap) / len(prompt_words)
-                score = max(score, overlap_ratio * 0.75)
+            # 1. Exact phrase match (High confidence)
+            if pattern['prompt'].lower() in text_lower:
+                return 1.0
+            
+            # 2. Flexible overlap check
+            prompt_words = [w for w in prompt_lower.split() if len(w) > 2] # Ignore small words
+            text_words = [w for w in text_lower.split() if len(w) > 2]
+            
+            if not prompt_words:
+                return score
+                
+            common = set(prompt_words) & set(text_words)
+            overlap_count = len(common)
+            
+            # For short phrases (2-3 words), require high overlap
+            if len(prompt_words) <= 3:
+                if overlap_count >= len(prompt_words) - 1:
+                    score = max(score, 0.85)
+            # For longer phrases, use ratio
+            else:
+                ratio = overlap_count / len(prompt_words)
+                if ratio > 0.6:  # >60% match
+                    score = max(score, 0.9 * ratio)
+                elif ratio > 0.4 and overlap_count >= 3: # >40% match with at least 3 words
+                    score = max(score, 0.75 * ratio)
+            
+            # 3. Critical keyword boost
+            critical_keywords = {'ignore', 'disregard', 'override', 'jailbreak', 'system', 'prompt', 'developer', 'mode'}
+            critical_hits = common & critical_keywords
+            if critical_hits and score > 0.0:
+                score = min(score + 0.15, 1.0)
+                
+            # 4. Partial phrase matching (continuous sequence)
+            # If 3+ consecutive words match, it's likely an attack
+            if len(prompt_words) >= 4:
+                for i in range(len(prompt_words) - 2):
+                    phrase = " ".join(prompt_words[i:i+3])
+                    if phrase in text_lower:
+                        score = max(score, 0.8)
+                        break
         
         # Check keywords
         if 'keywords' in pattern:
