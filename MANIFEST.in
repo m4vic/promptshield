@@ -3,10 +3,15 @@ include LICENSE
 include QUICKSTART.md
 include PHASE1_README.md
 include PHASE3_README.md
-include promptshield/attack_patterns.json
+
+# Include all attack pattern files
+recursive-include promptshield/attack_db *.json
 recursive-include promptshield *.py
-recursive-include promptshield *.json
+
+# Exclude unnecessary files
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude * .DS_Store
+recursive-exclude * *.pem
+recursive-exclude * *.sig
 exclude .gitignore
