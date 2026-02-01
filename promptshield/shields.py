@@ -268,39 +268,125 @@ class Shield:
     def _load_ml_models(self):
         """Load configured ML models"""
         self.models = {}
+        import os
+        import joblib
+        
+        models_dir = os.path.join(os.path.dirname(__file__), "models")
+        
+        # 1. Load Vectorizer (Required for all ML models)
+        try:
+            vec_path = os.path.join(models_dir, "tfidf_vectorizer_expanded.pkl")
+            if os.path.exists(vec_path):
+                self.vectorizer = joblib.load(vec_path)
+            else:
+                print(f"⚠️  Vectorizer not found at {vec_path}. ML models disabled.")
+                return
+        except Exception as e:
+            print(f"⚠️  Failed to load vectorizer: {e}")
+            return
+
+        # 2. Load Models
         for model_name in self.config["models"]:
             try:
-                # Basic placeholder for model loading logic
-                # Real implementation would load from model registry/files
-                # For now, we'll just track that it's "loaded" if files exist
-                # or warn if they don't.
-                
-                # Check if we have semantic matching
+                # Semantic models
                 if model_name == "semantic" or "transformer" in model_name:
-                    try:
-                        from sentence_transformers import SentenceTransformer
-                        # Check signatures if needed
-                        if self.config["verify_models"]:
-                            from .security.model_signing import verify_and_load_model
-                            # verify_and_load_model(...) 
-                            pass
-                            
-                        # Initialize model (lazy)
-                        self.models[model_name] = {"type": "semantic", "status": "active"}
-                    except ImportError:
-                        print(f"⚠️  Skipping model {model_name}: sentence-transformers not installed")
+                    # ... (keep existing semantic loading logic if needed, or remove if not using yet)
+                    pass 
                         
                 else:
-                    # Classical models (XGBoost, etc)
-                    import os
-                    model_path = os.path.join(os.path.dirname(__file__), "models", f"{model_name}.pkl")
+                    # ML Models (Logistic, RF, SVM)
+                    # Map simple names to filenames
+                    filename_map = {
+                        "logistic_regression": "logistic_regression_expanded.pkl",
+                        "random_forest": "random_forest_expanded.pkl",
+                        "svm": "svm_expanded.pkl"
+                    }
+                    
+                    fname = filename_map.get(model_name, f"{model_name}.pkl")
+                    model_path = os.path.join(models_dir, fname)
+                    
                     if os.path.exists(model_path):
-                        self.models[model_name] = {"path": model_path, "status": "active"} 
+                        loaded_model = joblib.load(model_path)
+                        self.models[model_name] = {
+                            "model": loaded_model,
+                            "type": "sklearn",
+                            "status": "active"
+                        }
                     else:
-                        print(f"⚠️  Model file not found: {model_name}")
+                        print(f"⚠️  Model file not found: {fname}")
                         
             except Exception as e:
                 print(f"⚠️  Failed to load model {model_name}: {e}")
+    
+    def _check_ml_models(self, text: str) -> float:
+        """
+        Check text against ML models with ensemble voting.
+        
+        Uses majority voting + probability averaging for robust predictions.
+        
+        Args:
+            text: Input text to analyze
+            
+        Returns:
+            Threat score (0.0 - 1.0)
+        """
+        if not self.models or not hasattr(self, 'vectorizer'):
+            return 0.0
+        
+        try:
+            # Vectorize input
+            X = self.vectorizer.transform([text])
+            
+            # Collect predictions from all models
+            predictions = []
+            probabilities = []
+            
+            for model_name, model_data in self.models.items():
+                if model_data.get("status") != "active":
+                    continue
+                    
+                model = model_data.get("model")
+                if model is None:
+                    continue
+                
+                try:
+                    # Get prediction (0 = safe, 1 = attack)
+                    pred = model.predict(X)[0]
+                    predictions.append(pred)
+                    
+                    # Get probability if available
+                    if hasattr(model, 'predict_proba'):
+                        prob = model.predict_proba(X)[0]
+                        # prob[1] is probability of attack class
+                        probabilities.append(prob[1] if len(prob) > 1 else prob[0])
+                    else:
+                        # Use prediction as probability
+                        probabilities.append(float(pred))
+                        
+                except Exception as e:
+                    print(f"⚠️  Model {model_name} prediction failed: {e}")
+                    continue
+            
+            if not predictions:
+                return 0.0
+            
+            # Ensemble Strategy: Weighted voting
+            # 1. Majority vote (counts attacks vs safe)
+            attack_votes = sum(predictions)
+            vote_ratio = attack_votes / len(predictions)
+            
+            # 2. Average probability
+            avg_prob = sum(probabilities) / len(probabilities) if probabilities else 0.0
+            
+            # 3. Combine (weighted average: 40% vote, 60% probability)
+            threat_score = (0.4 * vote_ratio) + (0.6 * avg_prob)
+            
+            return min(threat_score, 1.0)
+            
+        except Exception as e:
+            print(f"⚠️  ML model check failed: {e}")
+            return 0.0
+
     
     # ========================================
     # Factory Methods (Presets)
