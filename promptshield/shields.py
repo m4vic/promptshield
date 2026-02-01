@@ -405,7 +405,6 @@ class Shield:
         """
         defaults = {
             "patterns": True,
-            "models": None,
             "canary": False,
             "rate_limiting": False,
             "session_tracking": False,
@@ -427,7 +426,6 @@ class Shield:
         """
         defaults = {
             "patterns": True,
-            "models": None,
             "canary": False,
             "rate_limiting": False,
             "session_tracking": True,
@@ -440,17 +438,17 @@ class Shield:
     @classmethod
     def strict(cls, **kwargs):
         """
-        Strict preset - High security.
+        Strict preset - High security with ML.
         
-        Latency: ~3-5ms
-        Features: Patterns + Rate limiting + Session tracking + PII
+        Latency: ~7-10ms
+        Features: Patterns + 1 ML Model + Rate limiting + Session tracking + PII
+        ML: Logistic Regression (fast)
         
         Args:
             **kwargs: Override default settings
         """
         defaults = {
             "patterns": True,
-            "models": None,
             "canary": False,
             "rate_limiting": True,
             "rate_limit_base": 50,
@@ -459,23 +457,27 @@ class Shield:
             "pii_detection": True,
             "pii_redaction": "mask",
         }
+        # Add 1 ML model if not overridden
+        if "models" not in kwargs:
+            defaults["models"] = ["logistic_regression"]
+        
         defaults.update(kwargs)
         return cls(**defaults)
     
     @classmethod
     def secure(cls, **kwargs):
         """
-        Secure preset - Maximum protection.
+        Secure preset - Maximum protection with full ML ensemble.
         
-        Latency: ~5-10ms
-        Features: All protections enabled
+        Latency: ~12-15ms
+        Features: All protections + 3 ML Models (ensemble voting)
+        ML: Logistic Regression, Random Forest, SVM
         
         Args:
             **kwargs: Override default settings
         """
         defaults = {
             "patterns": True,
-            "models": None,
             "canary": True,
             "canary_mode": "crypto",
             "rate_limiting": True,
@@ -486,6 +488,10 @@ class Shield:
             "pii_redaction": "smart",
             "verify_models": False,
         }
+        # Add full ML ensemble if not overridden
+        if "models" not in kwargs:
+            defaults["models"] = ["logistic_regression", "random_forest", "svm"]
+        
         defaults.update(kwargs)
         return cls(**defaults)
     
